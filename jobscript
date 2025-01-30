@@ -12,8 +12,10 @@ declare -A dataset_map=(
    ["socialevolve_2weeks"]="socialevolve_2weeks"
 )
 
-# 定义模型列表
+# 定义模型列表和对应的参数
 declare -A model_map=(
+   ["freedyg"]="FreeDyG"
+   ["FreeDyG"]="FreeDyG"
    ["former"]="DyGFormer"
    ["DyGFormer"]="DyGFormer"
    ["mixer"]="GraphMixer"
@@ -24,7 +26,7 @@ declare -A model_map=(
 usage() {
    printf "Usage: %s <dataset> <model>\n" "$0" >&2
    printf "Dataset options: wikipedia (wiki), mooc, uci, social (or socialevolve_2weeks)\n" >&2
-   printf "Model options: former (DyGFormer), mixer (GraphMixer)\n" >&2
+   printf "Model options: freedyg (FreeDyG), former (DyGFormer), mixer (GraphMixer)\n" >&2
    exit 1
 }
 
@@ -46,7 +48,7 @@ if [ -z "$dataset" ]; then
 fi
 
 if [ -z "$model" ]; then
-   printf "Error: Invalid model name. Use one of: former (DyGFormer), mixer (GraphMixer)\n" >&2
+   printf "Error: Invalid model name. Use one of: freedyg (FreeDyG), former (DyGFormer), mixer (GraphMixer)\n" >&2
    exit 1
 fi
 
@@ -54,7 +56,15 @@ run_training() {
    local data=$1
    local model_name=$2
    echo "Starting training on dataset: $data with model: $model_name"
-   python train_link_prediction.py --model_name "$model_name" --dataset_name "$data"
+
+   # 根据不同模型设置不同的训练参数
+   if [ "$model_name" == "FreeDyG" ]; then
+       python train_link_prediction.py --model_name "$model_name" --dataset_name "$data" \
+           --num_runs 1 --patch_size 2 --max_input_sequence_length 64
+   else
+       python train_link_prediction.py --model_name "$model_name" --dataset_name "$data" \
+           --num_runs 1
+   fi
 
    # 检查训练是否成功
    if [ $? -eq 0 ]; then
@@ -70,7 +80,8 @@ run_evaluation() {
    local data=$1
    local model_name=$2
    echo "Starting evaluation on dataset: $data with model: $model_name"
-   python evaluate_link_prediction.py --model_name "$model_name" --dataset_name "$data"
+   python evaluate_link_prediction.py --model_name "$model_name" --dataset_name "$data" \
+       --negative_sample_strategy random --num_runs 1
 
    # 检查评估是否成功
    if [ $? -eq 0 ]; then
@@ -86,10 +97,10 @@ run_evaluation() {
 conda activate twgsl
 
 # 将文件复制到GPU节点的本地存储
-cp -r ~/scratch/DyGLib/ $TMPDIR
+cp -r ~/scratch/FreeDyG/ $TMPDIR
 
 # 切换到工作目录
-cd $TMPDIR/DyGLib/
+cd $TMPDIR/FreeDyG/
 
 # 运行训练
 run_training $dataset $model
@@ -108,7 +119,7 @@ fi
 rsync -av --progress \
    --exclude 'jobscript.e*' \
    --exclude 'jobscript.o*' \
-   "$TMPDIR/DyGLib/" ~/scratch/DyGLib/
+   "$TMPDIR/FreeDyG/" ~/scratch/FreeDyG/
 
 # 休眠几秒确保文件同步
 sleep 3
